@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     // Switch to 1.5-flash for better stability on Free Tier
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "models/gemini-1.5-flash",
       systemInstruction: "You are a helpful AI assistant that explains study topics in simple, student-friendly terms using analogies."
     });
 
