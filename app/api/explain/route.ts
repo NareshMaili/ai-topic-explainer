@@ -1,69 +1,43 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
 export async function POST(req: Request) {
   try {
     const { topic } = await req.json();
-    const apiKey = process.env.GEMINI_API_KEY;
 
-    // 1. Safety check for the API Key
-    if (!apiKey) {
-      console.error("Missing GEMINI_API_KEY in environment variables.");
-      return NextResponse.json(
-        { explanation: "Configuration error: API Key missing." },
-        { status: 500 }
-      );
+    if (!topic || topic.trim() === "") {
+      return NextResponse.json({ error: "Please enter a topic to continue." }, { status: 400 });
     }
 
-    const prompt = `Explain "${topic}" in simple terms for a student. Break it down into 2-3 short paragraphs.`;
-
-    /**
-     * FIX: Updated to 'gemini-2.0-flash' for 2026 stability.
-     * Use 'v1' for production consistency.
-     */
-    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-        // Optional: Adding generation config for better formatting
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 500,
-        },
-      }),
+    // Using Gemini 1.5 Flash (Free Tier) as required [cite: 22]
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: "You are a helpful AI assistant that explains study topics in simple, student-friendly terms. Use analogies and clear formatting."
     });
 
-    const data = await response.json();
+    let attempts = 0;
+    const maxRetries = 2;
 
-    // 2. Handle API-level errors (404, 400, 429, etc.)
-    if (!response.ok) {
-      console.error("Gemini API Error Response:", data);
-      return NextResponse.json(
-        { explanation: `API Error: ${data.error?.message || "Unknown error"}` },
-        { status: response.status }
-      );
+    while (attempts <= maxRetries) {
+      try {
+        const result = await model.generateContent(`Explain the topic '${topic}' in simple terms for a student.`);
+        const response = await result.response;
+        return NextResponse.json({ explanation: response.text() });
+      } catch (error: any) {
+        if (error.status === 429 && attempts < maxRetries) {
+          attempts++;
+          await delay(2000 * attempts);
+          continue;
+        }
+        throw error;
+      }
     }
-
-    // 3. Extract the text safely
-    const explanation =
-      data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "The AI returned an empty response. Please try a different topic.";
-
-    return NextResponse.json({ explanation });
-
-  } catch (error) {
-    // 4. Catch network or code crashes
-    console.error("Server-side Crash:", error);
+  } catch (err: any) {
     return NextResponse.json(
-      { explanation: "Server error generating explanation. Check your network connection." },
+      { error: "AI is busy. Please wait a moment and try again." },
       { status: 500 }
     );
   }

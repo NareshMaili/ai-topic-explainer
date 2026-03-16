@@ -1,65 +1,80 @@
 "use client";
-
 import { useState } from "react";
 
-export default function Home() {
+export default function StudyExplainer() {
   const [topic, setTopic] = useState("");
-  const [result, setResult] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [explanation, setExplanation] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const explainTopic = async () => {
+  const handleExplain = async () => {
+    if (!topic.trim()) {
+      setError("Please enter a topic to continue."); // Requirement [cite: 58]
+      return;
+    }
 
-  setLoading(true);
+    setError("");
+    setExplanation("");
+    setIsLoading(true); // Requirement [cite: 51]
 
-  const res = await fetch("/api/explain", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      topic: topic,
-    }),
-  });
+    try {
+      const res = await fetch("/api/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic }),
+      });
 
-  const data = await res.json();
-
-  setResult(data.explanation);
-  setLoading(false);
-};
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      setExplanation(data.explanation);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-  <div className="flex items-center justify-center min-h-screen bg-gradient-to-r from-blue-50 to-indigo-100">
-    
-    <div className="bg-white shadow-xl rounded-xl p-8 w-[420px] text-center">
-      
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">
-        AI Topic Explainer
-      </h1>
+    <main className="min-h-screen bg-gray-50 p-8 flex flex-col items-center">
+      <div className="max-w-2xl w-full space-y-8 bg-white p-10 rounded-xl shadow-md">
+        <header className="text-center">
+          <h1 className="text-3xl font-bold text-blue-600">AI Topic Explainer</h1>
+          <p className="text-gray-500 mt-2">Enter any topic and I'll explain it simply!</p>
+        </header>
 
-      <input
-        type="text"
-        placeholder="Enter a topic..."
-        className="border p-3 w-full rounded mb-4 text-black"
-        value={topic}
-        onChange={(e) => setTopic(e.target.value)}
-      />
-
-      <button
-        onClick={explainTopic}
-        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded w-full transition"
-      >
-        {loading ? "Explaining..." : "Explain"}
-      </button>
-
-      {result && (
-        <div className="mt-6 bg-gray-50 p-4 rounded-lg text-left">
-          <h2 className="font-semibold mb-2 text-gray-700">Explanation</h2>
-          <p className="text-gray-600">{result}</p>
+        <div className="flex flex-col gap-4">
+          <input
+            type="text"
+            className="border-2 border-gray-200 p-3 rounded-lg focus:outline-none focus:border-blue-400 text-black"
+            placeholder="e.g., Photosynthesis, Binary Search..."
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+          />
+          <button
+            onClick={handleExplain}
+            disabled={isLoading}
+            className="bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition"
+          >
+            {isLoading ? "Generating explanation..." : "Explain Topic"} 
+          </button>
         </div>
-      )}
 
-    </div>
+        {error && (
+          <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200">
+            {error}
+          </div>
+        )}
 
-  </div>
-);
+        {explanation && (
+          <div className="mt-8 p-6 bg-blue-50 rounded-lg border border-blue-100 animate-fade-in">
+            <h2 className="text-xl font-bold text-blue-800 mb-3">Topic: {topic}</h2>
+            <div className="prose prose-blue max-w-none text-gray-700 whitespace-pre-wrap">
+              {explanation}
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
 }
